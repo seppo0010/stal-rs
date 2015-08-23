@@ -1,6 +1,7 @@
 extern crate stal;
 
-use stal::Stal::*;
+use stal::Set::*;
+use stal::Stal;
 
 #[test]
 fn noop() {
@@ -20,10 +21,11 @@ fn sinter() {
     let set = Inter(vec![Key(key1.clone()), Key(key2.clone())]);
     let mut ids = vec![];
     let mut ops = vec![];
-    assert_eq!(set.convert(&mut ids, &mut ops), vec![]);
-    assert_eq!(ids.len(), 0);
+    assert_eq!(set.convert(&mut ids, &mut ops), b"stal:0");
+    assert_eq!(ids, vec!["stal:0".to_string()]);
     assert_eq!(ops, vec![vec![
-            b"SINTER".to_vec(),
+            b"SINTERSTORE".to_vec(),
+            b"stal:0".to_vec(),
             key1,
             key2,
             ]]);
@@ -36,10 +38,11 @@ fn sunion() {
     let set = Union(vec![Key(key1.clone()), Key(key2.clone())]);
     let mut ids = vec![];
     let mut ops = vec![];
-    assert_eq!(set.convert(&mut ids, &mut ops), vec![]);
-    assert_eq!(ids.len(), 0);
+    assert_eq!(set.convert(&mut ids, &mut ops), b"stal:0");
+    assert_eq!(ids, vec!["stal:0".to_string()]);
     assert_eq!(ops, vec![vec![
-            b"SUNION".to_vec(),
+            b"SUNIONSTORE".to_vec(),
+            b"stal:0".to_vec(),
             key1,
             key2,
             ]]);
@@ -52,10 +55,11 @@ fn sdiff() {
     let set = Diff(vec![Key(key1.clone()), Key(key2.clone())]);
     let mut ids = vec![];
     let mut ops = vec![];
-    assert_eq!(set.convert(&mut ids, &mut ops), vec![]);
-    assert_eq!(ids.len(), 0);
+    assert_eq!(set.convert(&mut ids, &mut ops), b"stal:0");
+    assert_eq!(ids, vec!["stal:0".to_string()]);
     assert_eq!(ops, vec![vec![
-            b"SDIFF".to_vec(),
+            b"SDIFFSTORE".to_vec(),
+            b"stal:0".to_vec(),
             key1,
             key2,
             ]]);
@@ -75,20 +79,22 @@ fn nesting() {
             ]);
     let mut ids = vec![];
     let mut ops = vec![];
-    assert_eq!(set.convert(&mut ids, &mut ops).len(), 0);
+    assert_eq!(set.convert(&mut ids, &mut ops), b"stal:0".to_vec());
     assert_eq!(ids, vec![
             "stal:0".to_string(),
+            "stal:1".to_string(),
             ]);
     assert_eq!(ops, vec![
             vec![
             b"SINTERSTORE".to_vec(),
-            b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key1,
             key2,
             ],
             vec![
-            b"SDIFF".to_vec(),
+            b"SDIFFSTORE".to_vec(),
             b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key3,
             ],
             ]);
@@ -106,17 +112,22 @@ fn explain() {
                 ]),
             Key(key3.clone())
             ]);
-    assert_eq!(set.explain() ,vec![
+    assert_eq!(Stal::new("SMEMBERS".to_string(), set).explain() ,vec![
             vec![
             b"SINTERSTORE".to_vec(),
-            b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key1,
             key2,
             ],
             vec![
-            b"SDIFF".to_vec(),
+            b"SDIFFSTORE".to_vec(),
             b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key3,
+            ],
+            vec![
+            b"SMEMBERS".to_vec(),
+            b"stal:0".to_vec(),
             ],
             ]);
 }
@@ -133,36 +144,42 @@ fn solve() {
                 ]),
             Key(key3.clone())
             ]);
-    assert_eq!(set.solve(), (vec![
+    assert_eq!(Stal::new("SMEMBERS".to_string(), set).solve(), (vec![
             vec![
             b"MULTI".to_vec(),
             ],
             vec![
             b"SINTERSTORE".to_vec(),
-            b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key1,
             key2,
             ],
             vec![
-            b"SDIFF".to_vec(),
+            b"SDIFFSTORE".to_vec(),
             b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             key3,
+            ],
+            vec![
+            b"SMEMBERS".to_vec(),
+            b"stal:0".to_vec(),
             ],
             vec![
             b"DEL".to_vec(),
             b"stal:0".to_vec(),
+            b"stal:1".to_vec(),
             ],
             vec![
             b"EXEC".to_vec(),
             ],
-            ], 2));
+            ], 3));
 }
 
 #[test]
 fn solve_noop() {
     let key1 = b"foo".to_vec();
     let set = Key(key1.clone());
-    assert_eq!(set.solve(), (vec![
+    assert_eq!(Stal::new("SMEMBERS".to_string(), set).solve(), (vec![
             vec![
             b"MULTI".to_vec(),
             ],
@@ -175,4 +192,3 @@ fn solve_noop() {
             ],
             ], 1));
 }
-
