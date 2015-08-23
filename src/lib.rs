@@ -163,6 +163,9 @@ impl Stal {
         }
     }
 
+    /// Takes an arbitrary command that uses one or more sets. The `command`
+    /// must have placeholders where the set keys should go. Each element
+    /// in `sets` specifies the position in the `command`.
     pub fn from_template(command: Vec<Vec<u8>>, sets: Vec<(Set, usize)>) -> Self {
         Stal {
             command: command,
