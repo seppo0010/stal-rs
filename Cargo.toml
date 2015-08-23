@@ -1,6 +1,6 @@
 [package]
 name = "stal"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Sebastian Waisbrot <seppo0010@gmail.com>"]
 description = "Set algebra solver for Redis"
 documentation = "http://seppo0010.github.io/stal-rs/"
