@@ -84,6 +84,7 @@
 
 /// A set of values. It can be generated from a Redis key or from a set
 /// operation based on other sets.
+#[derive(Clone)]
 pub enum Set {
     /// A key
     Key(Vec<u8>),
@@ -97,6 +98,23 @@ pub enum Set {
 use Set::*;
 
 impl Set {
+    /// Gets the commands to get a list of ids for this set
+    pub fn ids(&self) -> Stal {
+        let (op, sets) = match *self {
+            Key(_) => return Stal::from_template(vec![b"SMEMBERS".to_vec(), vec![]], vec![(self.clone(), 1)]),
+            Union(ref sets) => ("SUNION", sets),
+            Inter(ref sets) => ("SINTER", sets),
+            Diff(ref sets) => ("SDIFF", sets),
+        };
+        let mut command = vec![op.as_bytes().to_vec()];
+        command.extend(sets.iter().map(|_| vec![]).collect::<Vec<_>>());
+        let mut setv = vec![];
+        for i in 0..sets.len() {
+            setv.push((sets[i].clone(), i + 1));
+        }
+        Stal::from_template(command, setv)
+    }
+
     /// Maps the operation to its Redis command name.
     fn command(&self) -> &'static str {
         match *self {
@@ -142,6 +160,13 @@ impl Stal {
         Stal {
             command: vec![operation.as_bytes().to_vec(), vec![]],
             sets: vec![(set, 1)],
+        }
+    }
+
+    pub fn from_template(command: Vec<Vec<u8>>, sets: Vec<(Set, usize)>) -> Self {
+        Stal {
+            command: command,
+            sets: sets,
         }
     }
 
