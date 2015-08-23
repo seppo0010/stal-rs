@@ -131,26 +131,34 @@ impl Set {
 
 /// An operation to be executed on a set
 pub struct Stal {
-    /// Any Redis set operation
-    operation: String,
+    /// A Redis command
+    command: Vec<Vec<u8>>,
     /// Set in which execute the operation
-    set: Set,
+    sets: Vec<(Set, usize)>,
 }
 
 impl Stal {
     pub fn new(operation: String, set: Set) -> Self {
         Stal {
-            operation: operation,
-            set: set,
+            command: vec![operation.as_bytes().to_vec(), vec![]],
+            sets: vec![(set, 1)],
         }
+    }
+
+    fn add_ops(&self, ids: &mut Vec<String>, ops: &mut Vec<Vec<Vec<u8>>>) {
+        let mut command = self.command.clone();
+        for args in self.sets.iter() {
+            command.push(args.0.convert(ids, ops));
+            command.swap_remove(args.1);
+        }
+        ops.push(command);
     }
 
     /// Returns a list of operations to run. For debug only.
     pub fn explain(&self) -> Vec<Vec<Vec<u8>>> {
         let mut ids = vec![];
         let mut ops = vec![];
-        let key = self.set.convert(&mut ids, &mut ops);
-        ops.push(vec![self.operation.as_bytes().to_vec(), key]);
+        self.add_ops(&mut ids, &mut ops);
         ops
     }
 
@@ -160,8 +168,7 @@ impl Stal {
     pub fn solve(&self) -> (Vec<Vec<Vec<u8>>>, usize) {
         let mut ids = vec![];
         let mut ops = vec![vec![b"MULTI".to_vec()]];
-        let key = self.set.convert(&mut ids, &mut ops);
-        ops.push(vec![self.operation.as_bytes().to_vec(), key]);
+        self.add_ops(&mut ids, &mut ops);
         let pos = ops.len() - 1;
         if ids.len() > 0 {
             let mut del = vec![b"DEL".to_vec()];
