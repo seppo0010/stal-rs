@@ -1,8 +1,6 @@
 #![crate_name = "stal"]
 #![crate_type = "lib"]
 
-pub struct Hello;
-
 pub enum Set {
     Key(Vec<u8>),
     Union(Vec<Set>),
