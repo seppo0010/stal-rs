@@ -1,15 +1,103 @@
+//! stal-rs
+//! ====
+//!
+//! Set algebra solver for Redis in Rust, based on
+//! [Stal](https://github.com/soveran/stal).
+//!
+//! Description
+//! -----------
+//!
+//! `stal-rs` provide set operations and resolves them in [Redis][redis].
+//!
+//! Usage
+//! -----
+//!
+//! `stal-rs` has no dependencies. It produces a vector of Redis operations that
+//! have to be run by the user.
+//!
+//! ```rust
+//! extern crate stal;
+//!
+//! let foobar = stal::Set::Inter(vec![stal::Set::Key(b"foo".to_vec()), stal::Set::Key(b"bar".to_vec())]);
+//! let foobar_nobaz = stal::Set::Diff(vec![foobar, stal::Set::Key(b"baz".to_vec())]);
+//! let foobar_nobaz_andqux = stal::Set::Union(vec![stal::Set::Key(b"qux".to_vec()), foobar_nobaz]);
+//!
+//! assert_eq!(
+//!    stal::Stal::new("SMEMBERS".to_string(), foobar_nobaz_andqux).solve(),
+//!    (
+//!     vec![
+//!         vec![b"MULTI".to_vec()],
+//!         vec![b"SINTERSTORE".to_vec(), b"stal:2".to_vec(), b"foo".to_vec(), b"bar".to_vec()],
+//!         vec![b"SDIFFSTORE".to_vec(), b"stal:1".to_vec(), b"stal:2".to_vec(), b"baz".to_vec()],
+//!         vec![b"SUNIONSTORE".to_vec(), b"stal:0".to_vec(), b"qux".to_vec(), b"stal:1".to_vec()],
+//!         vec![b"SMEMBERS".to_vec(), b"stal:0".to_vec()],
+//!         vec![b"DEL".to_vec(), b"stal:0".to_vec(), b"stal:1".to_vec(), b"stal:2".to_vec()],
+//!         vec![b"EXEC".to_vec()],
+//!     ],
+//!     4
+//!    ));
+//! ```
+//!
+//! `stal-rs` translates the internal calls to  `SUNION`, `SDIFF` and
+//! `SINTER` into `SDIFFSTORE`, `SINTERSTORE` and `SUNIONSTORE` to
+//! perform the underlying operations, and it takes care of generating
+//! and deleting any temporary keys.
+//!
+//! The outmost command can be any set operation, for example:
+//!
+//! ```rust
+//! extern crate stal;
+//! let myset = stal::Set::Key(b"my set".to_vec());
+//! stal::Stal::new("SCARD".to_string(), myset).solve();
+//! ```
+//!
+//! If you want to preview the commands `Stal` will send to generate
+//! the results, you can use `Stal.explain`:
+//!
+//! ```rust
+//! extern crate stal;
+//!
+//! assert_eq!(
+//! stal::Stal::new("SMEMBERS".to_string(),
+//!         stal::Set::Inter(vec![
+//!             stal::Set::Union(vec![
+//!                 stal::Set::Key(b"foo".to_vec()),
+//!                 stal::Set::Key(b"bar".to_vec()),
+//!                 ]),
+//!             stal::Set::Key(b"baz".to_vec()),
+//!             ])
+//!         ).explain(),
+//! vec![
+//!     vec![b"SUNIONSTORE".to_vec(), b"stal:1".to_vec(), b"foo".to_vec(), b"bar".to_vec()],
+//!     vec![b"SINTERSTORE".to_vec(), b"stal:0".to_vec(), b"stal:1".to_vec(), b"baz".to_vec()],
+//!     vec![b"SMEMBERS".to_vec(), b"stal:0".to_vec()],
+//! ]
+//! )
+//! ```
+//!
+//! All commands are wrapped in a `MULTI/EXEC` transaction.
+//!
+//! [redis]: http://redis.io
+
 #![crate_name = "stal"]
 #![crate_type = "lib"]
 
+/// A set of values. It can be generated from a Redis key or from a set
+/// operation based on other sets.
 pub enum Set {
+    /// A key
     Key(Vec<u8>),
+    /// All the elements in any of the provided sets
     Union(Vec<Set>),
+    /// All the elements in all the sets
     Inter(Vec<Set>),
+    /// All the elements in the first set that are not in the other sets
     Diff(Vec<Set>),
 }
 use Set::*;
 
 impl Set {
+    /// Maps the operation to its Redis command name.
     fn command(&self) -> &'static str {
         match *self {
             Key(_) => unreachable!(),
@@ -19,6 +107,8 @@ impl Set {
         }
     }
 
+    /// Appends the operation to `ops` and any temporary id created to `ids`.
+    /// Returns the key representing the set.
     pub fn convert(&self, ids: &mut Vec<String>, ops: &mut Vec<Vec<Vec<u8>>>) -> Vec<u8> {
         let sets = match *self {
             Key(ref k) => return k.clone(),
@@ -39,8 +129,11 @@ impl Set {
     }
 }
 
+/// An operation to be executed on a set
 pub struct Stal {
+    /// Any Redis set operation
     operation: String,
+    /// Set in which execute the operation
     set: Set,
 }
 
@@ -52,6 +145,7 @@ impl Stal {
         }
     }
 
+    /// Returns a list of operations to run. For debug only.
     pub fn explain(&self) -> Vec<Vec<Vec<u8>>> {
         let mut ids = vec![];
         let mut ops = vec![];
@@ -60,6 +154,9 @@ impl Stal {
         ops
     }
 
+    /// Returns a lit of operations, wrapped in a multi/exec.
+    /// The last operation is always exec, and the returned `usize` indicates
+    /// the return value of the `operation`.
     pub fn solve(&self) -> (Vec<Vec<Vec<u8>>>, usize) {
         let mut ids = vec![];
         let mut ops = vec![vec![b"MULTI".to_vec()]];
