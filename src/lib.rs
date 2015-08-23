@@ -99,6 +99,25 @@ use Set::*;
 
 impl Set {
     /// Gets the commands to get a list of ids for this set
+    pub fn into_ids(self) -> Stal {
+        let (op, sets) = match self {
+            Key(_) => return Stal::from_template(vec![b"SMEMBERS".to_vec(), vec![]], vec![(self, 1)]),
+            Union(sets) => ("SUNION", sets),
+            Inter(sets) => ("SINTER", sets),
+            Diff(sets) => ("SDIFF", sets),
+        };
+        let mut command = vec![op.as_bytes().to_vec()];
+        command.extend(sets.iter().map(|_| vec![]).collect::<Vec<_>>());
+        let mut setv = vec![];
+        let mut i = 1;
+        for set in sets.into_iter() {
+            setv.push((set, i));
+            i += 1;
+        }
+        Stal::from_template(command, setv)
+    }
+
+    /// Gets the commands to get a list of ids for this set
     pub fn ids(&self) -> Stal {
         let (op, sets) = match *self {
             Key(_) => return Stal::from_template(vec![b"SMEMBERS".to_vec(), vec![]], vec![(self.clone(), 1)]),

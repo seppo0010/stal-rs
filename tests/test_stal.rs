@@ -247,3 +247,40 @@ fn nested_ids() {
             ],
             ], 2));
 }
+
+#[test]
+fn nested_into_ids() {
+    let key1 = b"foo".to_vec();
+    let key2 = b"bar".to_vec();
+    let key3 = b"baz".to_vec();
+    let set = Diff(vec![
+            Inter(vec![
+                Key(key1.clone()),
+                Key(key2.clone()),
+                ]),
+            Key(key3.clone())
+            ]);
+    assert_eq!(set.into_ids().solve(), (vec![
+            vec![
+            b"MULTI".to_vec(),
+            ],
+            vec![
+            b"SINTERSTORE".to_vec(),
+            b"stal:0".to_vec(),
+            key1,
+            key2,
+            ],
+            vec![
+            b"SDIFF".to_vec(),
+            b"stal:0".to_vec(),
+            key3,
+            ],
+            vec![
+            b"DEL".to_vec(),
+            b"stal:0".to_vec(),
+            ],
+            vec![
+            b"EXEC".to_vec(),
+            ],
+            ], 2));
+}
