@@ -84,7 +84,7 @@
 
 /// A set of values. It can be generated from a Redis key or from a set
 /// operation based on other sets.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Set {
     /// A key
     Key(Vec<u8>),
@@ -167,6 +167,7 @@ impl Set {
 }
 
 /// An operation to be executed on a set
+#[derive(Debug)]
 pub struct Stal {
     /// A Redis command
     command: Vec<Vec<u8>>,
